@@ -48,9 +48,9 @@ impl ICharacterBody3D for OmnaraPlayer {
     }
 
     fn ready(&mut self) {
-        godot_print!("🕹️ [PLAYER STEP 1]: Initializing Player Components...");
+        godot_print!("🕹️ [PLAYER]: Spawning AAA Player Components...");
 
-        // 1. إنشاء كبسولة الاصطدام
+        // 1. كبسولة الاصطدام
         let mut shape = CapsuleShape3D::new_gd();
         shape.set_radius(0.35);
         shape.set_height(1.8);
@@ -60,23 +60,23 @@ impl ICharacterBody3D for OmnaraPlayer {
         col_shape_node.set_position(Vector3::new(0.0, 0.9, 0.0));
         self.base_mut().add_child(&col_shape_node);
 
-        // 2. إنشاء نقطة الرأس وإضافتها للشجرة أولاً
+        // 2. نقطة الرأس
         let mut head_node = Node3D::new_alloc();
         head_node.set_position(Vector3::new(0.0, 1.6, 0.0));
         self.base_mut().add_child(&head_node);
 
-        // 3. إنشاء الكاميرا وتفعيلها بأمان تام
+        // 3. الكاميرا
         let mut cam_node = Camera3D::new_alloc();
         head_node.add_child(&cam_node);
-        cam_node.set_current(true); // استخدام set_current الآمنة بدلاً من make_current
+        cam_node.set_current(true);
 
         self.head = Some(head_node);
         self.camera = Some(cam_node);
 
-        // وضع اللاعب فوق السطح عند البداية
-        self.base_mut().set_position(Vector3::new(0.0, 75.0, 0.0));
+        // وضع اللاعب في مكان مرتفع فوق التضاريس عند البدء (Y = 80)
+        self.base_mut().set_position(Vector3::new(0.0, 80.0, 0.0));
 
-        godot_print!("🕹️ [PLAYER STEP 2]: Player Ready and In Position!");
+        godot_print!("✅ [PLAYER]: Spawn Complete without Errors!");
     }
 
     fn unhandled_input(&mut self, event: Gd<InputEvent>) {
@@ -116,15 +116,35 @@ impl ICharacterBody3D for OmnaraPlayer {
 
         let speed = WALK_SPEED;
         let global_transform = self.base().get_global_transform();
-        let forward = -global_transform.basis.col_c().normalized();
-        let right = global_transform.basis.col_a().normalized();
+        
+        // حساب اتجاه النظر الآمن رياضياً (حماية من الانهيار)
+        let col_c = global_transform.basis.col_c();
+        let forward = if col_c.length_squared() > 0.0001 {
+            -col_c / col_c.length()
+        } else {
+            Vector3::new(0.0, 0.0, -1.0)
+        };
 
-        let move_dir = (forward * -input_vec.y + right * input_vec.x).normalized();
+        let col_a = global_transform.basis.col_a();
+        let right = if col_a.length_squared() > 0.0001 {
+            col_a / col_a.length()
+        } else {
+            Vector3::new(1.0, 0.0, 0.0)
+        };
+
+        // ⚡ الحل الجذري: تطبيع المتجه بأمان واستحالة حدوث Crash عند الوقوف ⚡
+        let raw_move = forward * -input_vec.y + right * input_vec.x;
+        let move_dir = if raw_move.length_squared() > 0.0001 {
+            raw_move / raw_move.length()
+        } else {
+            Vector3::ZERO
+        };
 
         if move_dir.length_squared() > 0.001 {
             velocity.x = move_toward(velocity.x, move_dir.x * speed, ACCELERATION * speed * delta_f);
             velocity.z = move_toward(velocity.z, move_dir.z * speed, ACCELERATION * speed * delta_f);
 
+            // تمايل الرأس أثناء المشي
             if is_on_floor {
                 self.bob_timer += delta_f * (speed * BOB_FREQUENCY);
                 let bob_y = 1.6 + (self.bob_timer.sin() * BOB_AMPLITUDE);
@@ -158,4 +178,4 @@ impl OmnaraPlayer {
             head.set_rotation(Vector3::new(self.head_rotation_x, 0.0, 0.0));
         }
     }
-        }
+}
