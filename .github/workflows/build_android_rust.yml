@@ -10,45 +10,50 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        arch: [aarch64-linux-android] # ARM64 للهواتف الحديثة
+        arch: [aarch64-linux-android]
         target: [release]
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # ⚡ تثبيت لغة Rust وهدف الأندرويد ⚡
       - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.arch }}
 
-      # ⚡ كاش فائق السرعة لحزم Rust (Cargo Cache) ⚡
       - name: Setup Rust Cache
         uses: Swatinem/rust-cache@v2
 
-      # ⚡ تثبيت أداة cargo-ndk للربط مع أندرويد ⚡
       - name: Install cargo-ndk
         run: cargo install cargo-ndk
 
-      # ⚡ تثبيت Android NDK 28 ⚡
-      - name: Install Android NDK 28
+      # ⚡ حفظ واسترجاع كاش NDK لعدم تحميله مجدداً ⚡
+      - name: Cache Android NDK
+        id: cache-ndk
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/lib/android/sdk/ndk/28.1.13356709
+          key: ${{ runner.os }}-ndk-28.1.13356709
+
+      - name: Install Android NDK 28 (if not cached)
+        if: steps.cache-ndk.outputs.cache-hit != 'true'
         run: |
           $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;28.1.13356709"
+
+      - name: Set NDK Environment
+        run: |
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/28.1.13356709" >> $GITHUB_ENV
 
-      # ⚡ تجميع كود Rust للهاتف السحابي ⚡
       - name: Build Rust Library with cargo-ndk
         run: |
           cargo ndk --target ${{ matrix.arch }} build --release
 
-      # ⚡ تجهيز المجلد والملفات الناتجة ⚡
       - name: Prepare Artifacts
         run: |
           mkdir -p godot_project/bin/android/arm64-v8a/
           cp target/${{ matrix.arch }}/release/*.so godot_project/bin/android/arm64-v8a/
 
-      # ⚡ رفع ملف المكتبة لتحميله مباشرة ⚡
       - name: Upload Android .so Library
         uses: actions/upload-artifact@v4
         with:
