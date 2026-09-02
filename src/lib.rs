@@ -191,4 +191,4 @@ fn indices_builder(indices: &mut Vec<i32>, vertex_count: &mut i32) {
     indices.push(*vertex_count + 3);
 
     *vertex_count += 4;
-                               }
+}
