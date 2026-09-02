@@ -77,7 +77,7 @@ impl IMeshInstance3D for OmnaraChunkNode {
         self.base_mut().set_mesh(&mesh);
         self.base_mut().set_material_override(&mat);
 
-        // ⚡ توليد مجسم الاصطدام الفيزيائي للعالم بالكامل تلقائياً بدالة مدمجة ⚡
+        // توليد مجسم الاصطدام الفيزيائي للعالم تلقائياً
         self.base_mut().create_trimesh_collision();
         godot_print!("🛡️ [OMNARA]: World Physics Collision Shape Generated Successfully!");
 
