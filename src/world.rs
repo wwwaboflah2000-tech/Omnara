@@ -87,7 +87,6 @@ impl VoxelWorld {
         sub_chunk.set_block(lx, local_y, lz, block);
     }
 
-    // توليد تضاريس متموجة مع بحار وشواطئ وجبال وبيدروك
     pub fn generate_test_world(&mut self, radius_chunks: i32) {
         for cx in -radius_chunks..=radius_chunks {
             for cz in -radius_chunks..=radius_chunks {
@@ -96,35 +95,34 @@ impl VoxelWorld {
                         let gx = cx * CHUNK_SIZE as i32 + lx;
                         let gz = cz * CHUNK_SIZE as i32 + lz;
 
-                        // تضاريس ترتفع وتنخفض بين 54 (بحر) و 78 (جبال)
                         let wave = ((gx as f32 * 0.08).sin() * 8.0 + (gz as f32 * 0.08).cos() * 8.0) as i32;
                         let terrain_height = 64 + wave;
 
-                        // 1. قاع العالم (البيدروك عند -64)
+                        // 1. البيدروك عند -64
                         self.set_block_global(gx, MIN_WORLD_Y, gz, BlockId::BEDROCK);
 
-                        // 2. طبقات الصخور والتراب
+                        // 2. الصخور والتراب والرمال
                         for gy in (MIN_WORLD_Y + 1)..=terrain_height {
                             if gy < terrain_height - 4 {
                                 self.set_block_global(gx, gy, gz, BlockId::STONE);
                             } else if gy < terrain_height {
                                 if terrain_height <= SEA_LEVEL + 1 {
-                                    self.set_block_global(gx, gy, gz, BlockId::SAND); // شاطئ رملي
+                                    self.set_block_global(gx, gy, gz, BlockId::SAND);
                                 } else {
                                     self.set_block_global(gx, gy, gz, BlockId::DIRT);
                                 }
                             } else if gy == terrain_height {
                                 if gy < SEA_LEVEL {
-                                    self.set_block_global(gx, gy, gz, BlockId::SAND); // قاع البحر رمل
+                                    self.set_block_global(gx, gy, gz, BlockId::SAND);
                                 } else if gy <= SEA_LEVEL + 1 {
-                                    self.set_block_global(gx, gy, gz, BlockId::SAND); // شاطئ
+                                    self.set_block_global(gx, gy, gz, BlockId::SAND);
                                 } else {
-                                    self.set_block_global(gx, gy, gz, BlockId::GRASS); // عشب يابس
+                                    self.set_block_global(gx, gy, gz, BlockId::GRASS);
                                 }
                             }
                         }
 
-                        // 3. ملء مياه البحر حتى المستوى 63 بدقة
+                        // 3. ملء مياه البحر حتى المستوى 63
                         if terrain_height < SEA_LEVEL {
                             for gy in (terrain_height + 1)..=SEA_LEVEL {
                                 self.set_block_global(gx, gy, gz, BlockId::WATER);
