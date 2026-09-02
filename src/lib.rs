@@ -24,7 +24,7 @@ const DIRECTIONS: [[i32; 3]; 6] = [
     [-1, 0, 0],  // 5: West (-X)
 ];
 
-// 2. متجهات الإضاءة
+// 2. متجهات الإضاءة لكل وجه
 const FACE_NORMALS: [[f32; 3]; 6] = [
     [0.0, 1.0, 0.0],   // Top
     [0.0, -1.0, 0.0],  // Bottom
@@ -63,22 +63,22 @@ impl IMeshInstance3D for OmnaraChunkNode {
     }
 
     fn ready(&mut self) {
-        godot_print!("🔨 [OMNARA]: Generating Solid SubChunk (Cull Disabled)...");
+        godot_print!("🔨 [OMNARA]: Generating Optimized SubChunk (Zero Garbage)...");
 
         let mut sub_chunk = SubChunk::new();
         sub_chunk.generate_test_terrain();
 
         let mesh = self.build_mesh(&sub_chunk);
         
-        // ⚡ خامة فائقة الصلابة مع تعطيل الـ Culling لضمان رؤية كل الوجوه ⚡
+        // خامة معطل بها الـ Culling وتعتمد على ألوان النقاط
         let mut mat = StandardMaterial3D::new_gd();
         mat.set_flag(Flags::ALBEDO_FROM_VERTEX_COLOR, true);
-        mat.set_cull_mode(CullMode::DISABLED); // يمنع إخفاء أي وجه نهائياً
+        mat.set_cull_mode(CullMode::DISABLED);
 
         self.base_mut().set_mesh(&mesh);
         self.base_mut().set_material_override(&mat);
         
-        godot_print!("✅ [OMNARA]: 100% Solid SubChunk Rendered Successfully!");
+        godot_print!("✅ [OMNARA]: Optimized SubChunk Rendered Cleanly!");
     }
 }
 
@@ -89,7 +89,7 @@ impl OmnaraChunkNode {
                 if face_idx == 0 {
                     Color::from_rgb(0.2, 0.8, 0.2) // عشب أخضر في القمة
                 } else if face_idx == 1 {
-                    Color::from_rgb(0.45, 0.3, 0.15) // تراب في القاع
+                    Color::from_rgb(0.45, 0.3, 0.15) // تراب في الأسفل
                 } else {
                     Color::from_rgb(0.35, 0.6, 0.2) // جانب العشب
                 }
@@ -100,9 +100,8 @@ impl OmnaraChunkNode {
         }
     }
 
-fn build_mesh(&self, chunk: &SubChunk) -> Gd<ArrayMesh> {
-        // ⚡ استخدام مصفوفات Rust الأصلية (Native Vec) لسرعة خارقة قبل إرسالها لـ Godot ⚡
-        // حجزنا مساحة تقريبية (Capacity) لمنع المعالج من تضييع الوقت في إعادة حجز الذاكرة
+    fn build_mesh(&self, chunk: &SubChunk) -> Gd<ArrayMesh> {
+        // حجز مصفوفات Rust الأصلية السريعة مسبقاً لمنع إعادة الحجز المتكرر
         let mut rust_vertices = Vec::with_capacity(2000);
         let mut rust_normals = Vec::with_capacity(2000);
         let mut rust_colors = Vec::with_capacity(2000);
@@ -115,19 +114,19 @@ fn build_mesh(&self, chunk: &SubChunk) -> Gd<ArrayMesh> {
                 for x in 0..CHUNK_SIZE as i32 {
                     let block = chunk.get_block(x, y, z);
                     if !block.is_opaque() {
-                        continue; // تجاوز الهواء فورا
+                        continue;
                     }
 
                     for face_idx in 0..6 {
                         let dir = DIRECTIONS[face_idx];
                         let neighbor = chunk.get_block(x + dir[0], y + dir[1], z + dir[2]);
 
+                        // ارسم الوجه فقط إذا كان الجار غير مصمت
                         if !neighbor.is_opaque() {
                             let face = FACE_VERTICES[face_idx];
                             let normal = FACE_NORMALS[face_idx];
                             let color = Self::get_block_color(block, face_idx);
 
-                            // دفع البيانات داخل مصفوفات Rust السريعة جداً
                             for v in face {
                                 rust_vertices.push(Vector3::new(
                                     x as f32 + v[0],
@@ -156,11 +155,11 @@ fn build_mesh(&self, chunk: &SubChunk) -> Gd<ArrayMesh> {
         let mut arrays = ArrayMesh::new_gd();
         
         if !rust_vertices.is_empty() {
-            // ⚡ تحويل مصفوفات Rust إلى مصفوفات Godot (دفعة واحدة فقط = FFI Call واحد) ⚡
-            let vertices_packed = PackedVector3Array::from_iter(rust_vertices);
-            let normals_packed = PackedVector3Array::from_iter(rust_normals);
-            let colors_packed = PackedColorArray::from_iter(rust_colors);
-            let indices_packed = PackedInt32Array::from_iter(rust_indices);
+            // تحويل مصفوفات Rust إلى مصفوفات Godot دفعة واحدة
+            let vertices_packed: PackedVector3Array = rust_vertices.into_iter().collect();
+            let normals_packed: PackedVector3Array = rust_normals.into_iter().collect();
+            let colors_packed: PackedColorArray = rust_colors.into_iter().collect();
+            let indices_packed: PackedInt32Array = rust_indices.into_iter().collect();
 
             let mut surface_arrays = VarArray::new();
             surface_arrays.resize(ArrayType::MAX.ord() as usize, &Variant::nil());
@@ -174,4 +173,5 @@ fn build_mesh(&self, chunk: &SubChunk) -> Gd<ArrayMesh> {
         }
 
         arrays
+    }
 }
