@@ -6,7 +6,7 @@ use godot::prelude::*;
 use godot::classes::{
     MeshInstance3D, IMeshInstance3D, ArrayMesh, StandardMaterial3D,
     base_material_3d::Flags, base_material_3d::CullMode,
-    mesh::ArrayType, mesh::PrimitiveType
+    mesh::ArrayType, mesh::PrimitiveType, StaticBody3D, CollisionShape3D
 };
 use godot::builtin::VarArray;
 use voxel::{BlockId, CHUNK_SIZE, MIN_WORLD_Y, MAX_WORLD_Y};
@@ -63,7 +63,7 @@ impl IMeshInstance3D for OmnaraChunkNode {
     }
 
     fn ready(&mut self) {
-        godot_print!("🔨 [OMNARA]: Generating Solid 3x3 World with Physics Collision...");
+        godot_print!("🔨 [OMNARA]: Generating Solid 3x3 World with SAFE Mobile Collision...");
 
         let mut world = VoxelWorld::new();
         world.generate_test_world(1);
@@ -77,11 +77,19 @@ impl IMeshInstance3D for OmnaraChunkNode {
         self.base_mut().set_mesh(&mesh);
         self.base_mut().set_material_override(&mat);
 
-        // توليد مجسم الاصطدام الفيزيائي للعالم تلقائياً
-        self.base_mut().create_trimesh_collision();
-        godot_print!("🛡️ [OMNARA]: World Physics Collision Shape Generated Successfully!");
+        // ⚡ الحل الجذري لمنع الانهيار (Crash): بناء الاصطدام يدوياً ليتوافق مع الموبايل ⚡
+        if let Some(shape) = mesh.create_trimesh_shape() {
+            let mut static_body = StaticBody3D::new_alloc();
+            let mut col_shape = CollisionShape3D::new_alloc();
+            
+            col_shape.set_shape(&shape);
+            static_body.add_child(&col_shape);
+            self.base_mut().add_child(&static_body);
+            
+            godot_print!("🛡️ [OMNARA]: Mobile-Safe Physics Collision Generated!");
+        }
 
-        godot_print!("✅ [OMNARA]: 3x3 World with Physics & Collision Ready!");
+        godot_print!("✅ [OMNARA]: World is Ready to Play!");
     }
 }
 
@@ -111,7 +119,6 @@ impl OmnaraChunkNode {
         let mut rust_normals = Vec::with_capacity(30000);
         let mut rust_colors = Vec::with_capacity(30000);
         let mut rust_indices = Vec::with_capacity(45000);
-
         let mut vertex_count: i32 = 0;
 
         let min_coord = -radius * CHUNK_SIZE as i32;
@@ -121,9 +128,7 @@ impl OmnaraChunkNode {
             for gz in min_coord..max_coord {
                 for gy in MIN_WORLD_Y..MAX_WORLD_Y {
                     let block = world.get_block_global(gx, gy, gz);
-                    if block == BlockId::AIR {
-                        continue;
-                    }
+                    if block == BlockId::AIR { continue; }
 
                     for face_idx in 0..6 {
                         let dir = DIRECTIONS[face_idx];
@@ -149,7 +154,6 @@ impl OmnaraChunkNode {
                                 rust_normals.push(Vector3::new(normal[0], normal[1], normal[2]));
                                 rust_colors.push(color);
                             }
-
                             indices_builder(&mut rust_indices, &mut vertex_count);
                         }
                     }
@@ -158,7 +162,6 @@ impl OmnaraChunkNode {
         }
 
         let mut arrays = ArrayMesh::new_gd();
-
         if !rust_vertices.is_empty() {
             let vertices_packed: PackedVector3Array = rust_vertices.into_iter().collect();
             let normals_packed: PackedVector3Array = rust_normals.into_iter().collect();
@@ -167,7 +170,6 @@ impl OmnaraChunkNode {
 
             let mut surface_arrays = VarArray::new();
             surface_arrays.resize(ArrayType::MAX.ord() as usize, &Variant::nil());
-
             surface_arrays.set(ArrayType::VERTEX.ord() as usize, &vertices_packed.to_variant());
             surface_arrays.set(ArrayType::NORMAL.ord() as usize, &normals_packed.to_variant());
             surface_arrays.set(ArrayType::COLOR.ord() as usize, &colors_packed.to_variant());
@@ -175,7 +177,6 @@ impl OmnaraChunkNode {
 
             arrays.add_surface_from_arrays(PrimitiveType::TRIANGLES, &surface_arrays);
         }
-
         arrays
     }
 }
@@ -185,10 +186,8 @@ fn indices_builder(indices: &mut Vec<i32>, vertex_count: &mut i32) {
     indices.push(*vertex_count);
     indices.push(*vertex_count + 1);
     indices.push(*vertex_count + 2);
-
     indices.push(*vertex_count);
     indices.push(*vertex_count + 2);
     indices.push(*vertex_count + 3);
-
     *vertex_count += 4;
 }
