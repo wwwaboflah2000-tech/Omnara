@@ -3,7 +3,8 @@ mod voxel;
 use godot::prelude::*;
 use godot::classes::{
     MeshInstance3D, IMeshInstance3D, ArrayMesh, StandardMaterial3D,
-    base_material_3d::Flags, mesh::ArrayType, mesh::PrimitiveType
+    base_material_3d::Flags, base_material_3d::CullMode,
+    mesh::ArrayType, mesh::PrimitiveType
 };
 use godot::builtin::VarArray;
 use voxel::{SubChunk, BlockId, CHUNK_SIZE};
@@ -23,7 +24,7 @@ const DIRECTIONS: [[i32; 3]; 6] = [
     [-1, 0, 0],  // 5: West (-X)
 ];
 
-// 2. متجهات الإضاءة والظلال لكل وجه
+// 2. متجهات الإضاءة
 const FACE_NORMALS: [[f32; 3]; 6] = [
     [0.0, 1.0, 0.0],   // Top
     [0.0, -1.0, 0.0],  // Bottom
@@ -33,7 +34,7 @@ const FACE_NORMALS: [[f32; 3]; 6] = [
     [-1.0, 0.0, 0.0],  // West
 ];
 
-// 3. مصفوفة نقاط الأوجه المصححة رياضياً (Counter-Clockwise CCW 100%)
+// 3. مصفوفة نقاط الأوجه
 const FACE_VERTICES: [[[f32; 3]; 4]; 6] = [
     // 0: Top (+Y)
     [[0.0, 1.0, 1.0], [1.0, 1.0, 1.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]],
@@ -62,21 +63,22 @@ impl IMeshInstance3D for OmnaraChunkNode {
     }
 
     fn ready(&mut self) {
-        godot_print!("🔨 [OMNARA]: Generating Solid SubChunk with Fixed CCW Winding...");
+        godot_print!("🔨 [OMNARA]: Generating Solid SubChunk (Cull Disabled)...");
 
         let mut sub_chunk = SubChunk::new();
         sub_chunk.generate_test_terrain();
 
         let mesh = self.build_mesh(&sub_chunk);
         
-        // خامة ألوان النقاط
+        // ⚡ خامة فائقة الصلابة مع تعطيل الـ Culling لضمان رؤية كل الوجوه ⚡
         let mut mat = StandardMaterial3D::new_gd();
         mat.set_flag(Flags::ALBEDO_FROM_VERTEX_COLOR, true);
+        mat.set_cull_mode(CullMode::DISABLED); // يمنع إخفاء أي وجه نهائياً
 
         self.base_mut().set_mesh(&mesh);
         self.base_mut().set_material_override(&mat);
         
-        godot_print!("✅ [OMNARA]: Solid SubChunk Rendered with Full Geometry & Colors!");
+        godot_print!("✅ [OMNARA]: 100% Solid SubChunk Rendered Successfully!");
     }
 }
 
@@ -85,15 +87,15 @@ impl OmnaraChunkNode {
         match block {
             BlockId::GRASS => {
                 if face_idx == 0 {
-                    Color::from_rgb(0.2, 0.8, 0.2) // عشب أخضر من الأعلى
+                    Color::from_rgb(0.2, 0.8, 0.2) // عشب أخضر في القمة
                 } else if face_idx == 1 {
-                    Color::from_rgb(0.45, 0.3, 0.15) // تراب من الأسفل
+                    Color::from_rgb(0.45, 0.3, 0.15) // تراب في القاع
                 } else {
                     Color::from_rgb(0.35, 0.6, 0.2) // جانب العشب
                 }
             }
-            BlockId::DIRT => Color::from_rgb(0.5, 0.32, 0.15), // تراب بني
-            BlockId::STONE => Color::from_rgb(0.55, 0.55, 0.55), // حجر رمادي
+            BlockId::DIRT => Color::from_rgb(0.5, 0.32, 0.15),
+            BlockId::STONE => Color::from_rgb(0.55, 0.55, 0.55),
             _ => Color::from_rgb(1.0, 1.0, 1.0),
         }
     }
@@ -117,7 +119,7 @@ impl OmnaraChunkNode {
                         let dir = DIRECTIONS[face_idx];
                         let neighbor = chunk.get_block(x + dir[0], y + dir[1], z + dir[2]);
 
-                        // إخفاء الأوجه: ارسم الوجه فقط إذا كان الجار غير مصمت
+                        // ارسم الوجه فقط إذا كان الجار هواء
                         if !neighbor.is_opaque() {
                             let face = FACE_VERTICES[face_idx];
                             let normal = FACE_NORMALS[face_idx];
@@ -133,7 +135,7 @@ impl OmnaraChunkNode {
                                 colors.push(color);
                             }
 
-                            // بناء مثلثين لكل وجه مربع (Indices)
+                            // بناء المثلثين لكل وجه
                             indices.push(vertex_count);
                             indices.push(vertex_count + 1);
                             indices.push(vertex_count + 2);
