@@ -106,18 +106,18 @@ impl ICharacterBody3D for OmnaraPlayer {
             velocity.y -= GRAVITY * delta_f;
         }
 
-        // 2. القفز
+        // 2. القفز (تم تمرير النص مباشرة بدون into)
         let input = Input::singleton();
-        if input.is_action_just_pressed("ui_accept".into()) && is_on_floor {
+        if input.is_action_just_pressed("ui_accept") && is_on_floor {
             velocity.y = JUMP_VELOCITY;
         }
 
-        // 3. استقبال الحركة الموحدة (WASD / الأسهم / أزرار اللمس)
+        // 3. استقبال الحركة الموحدة (تم تمرير النصوص مباشرة بدون into)
         let input_vec = input.get_vector(
-            "ui_left".into(),
-            "ui_right".into(),
-            "ui_up".into(),
-            "ui_down".into(),
+            "ui_left",
+            "ui_right",
+            "ui_up",
+            "ui_down",
         );
 
         let speed = WALK_SPEED;
