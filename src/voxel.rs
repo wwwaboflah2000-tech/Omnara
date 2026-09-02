@@ -51,21 +51,19 @@ impl SubChunk {
         }
     }
 
-    // توليد تضاريس ثلاثية الأبعاد مع تموجات وتلال (3D Rolling Hills)
     pub fn generate_test_terrain(&mut self) {
         for x in 0..CHUNK_SIZE {
             for z in 0..CHUNK_SIZE {
-                // معادلة موجية بسيطة لتوليد ارتفاعات متغيرة بين 4 إلى 12 بلوكة
                 let wave = ((x as f32 * 0.4).sin() * 2.5 + (z as f32 * 0.4).cos() * 2.5) as i32;
                 let height = (7 + wave).clamp(2, (CHUNK_SIZE - 2) as i32) as usize;
 
                 for y in 0..CHUNK_SIZE {
                     if y < height.saturating_sub(3) {
-                        self.set_block(x, y, z, BlockId::STONE); // الحجر في الأسفل
+                        self.set_block(x, y, z, BlockId::STONE);
                     } else if y < height {
-                        self.set_block(x, y, z, BlockId::DIRT);  // التراب في المنتصف
+                        self.set_block(x, y, z, BlockId::DIRT);
                     } else if y == height {
-                        self.set_block(x, y, z, BlockId::GRASS); // العشب على السطح
+                        self.set_block(x, y, z, BlockId::GRASS);
                     }
                 }
             }
