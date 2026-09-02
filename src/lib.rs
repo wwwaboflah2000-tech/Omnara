@@ -77,9 +77,9 @@ impl IMeshInstance3D for OmnaraChunkNode {
         self.base_mut().set_mesh(&mesh);
         self.base_mut().set_material_override(&mat);
 
-        // ⚡ توليد مجسم الاصطدام الفيزيائي الصلب تلقائياً ليقف اللاعب فوق التضاريس ⚡
-        let mut static_body = StaticBody3D::new_gd();
-        let mut col_shape = CollisionShape3D::new_gd();
+        // ⚡ استخدام new_alloc للعقد بدلاً من new_gd ⚡
+        let mut static_body = StaticBody3D::new_alloc();
+        let mut col_shape = CollisionShape3D::new_alloc();
         
         if let Some(shape) = mesh.create_trimesh_shape() {
             col_shape.set_shape(&shape);
@@ -198,4 +198,4 @@ fn indices_builder(indices: &mut Vec<i32>, vertex_count: &mut i32) {
     indices.push(*vertex_count + 3);
 
     *vertex_count += 4;
-    }
+}
