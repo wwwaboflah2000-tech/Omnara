@@ -1,5 +1,5 @@
 pub const CHUNK_SIZE: usize = 16;
-pub const CHUNK_VOLUME: usize = CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE; // 4096
+pub const CHUNK_VOLUME: usize = CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct BlockId(pub u8);
@@ -12,12 +12,11 @@ impl BlockId {
 
     #[inline(always)]
     pub fn is_opaque(&self) -> bool {
-        self.0 != 0 // الهواء هو الوحيد الشفاف حالياً
+        self.0 != 0
     }
 }
 
 pub struct SubChunk {
-    // 4096 بايت في الذاكرة فقط!
     pub blocks: [u8; CHUNK_VOLUME],
 }
 
@@ -28,7 +27,6 @@ impl SubChunk {
         }
     }
 
-    // حساب الـ Index بسرعة البرق باستخدام الإزاحة الثنائية (Bit Shift)
     #[inline(always)]
     fn get_index(x: usize, y: usize, z: usize) -> usize {
         x + (z << 4) + (y << 8)
@@ -39,7 +37,7 @@ impl SubChunk {
         if x < 0 || x >= CHUNK_SIZE as i32 ||
            y < 0 || y >= CHUNK_SIZE as i32 ||
            z < 0 || z >= CHUNK_SIZE as i32 {
-            return BlockId::AIR; // خارج حدود الـ Chunk نعتبره هواء مؤقتاً
+            return BlockId::AIR;
         }
         let index = Self::get_index(x as usize, y as usize, z as usize);
         BlockId(self.blocks[index])
@@ -53,20 +51,24 @@ impl SubChunk {
         }
     }
 
-    // توليد تضاريس تجريبية (تلة من العشب والتراب والحجر)
+    // توليد تضاريس ثلاثية الأبعاد مع تموجات وتلال (3D Rolling Hills)
     pub fn generate_test_terrain(&mut self) {
         for x in 0..CHUNK_SIZE {
             for z in 0..CHUNK_SIZE {
+                // معادلة موجية بسيطة لتوليد ارتفاعات متغيرة بين 4 إلى 12 بلوكة
+                let wave = ((x as f32 * 0.4).sin() * 2.5 + (z as f32 * 0.4).cos() * 2.5) as i32;
+                let height = (7 + wave).clamp(2, (CHUNK_SIZE - 2) as i32) as usize;
+
                 for y in 0..CHUNK_SIZE {
-                    if y < 4 {
-                        self.set_block(x, y, z, BlockId::STONE);
-                    } else if y < 7 {
-                        self.set_block(x, y, z, BlockId::DIRT);
-                    } else if y == 7 {
-                        self.set_block(x, y, z, BlockId::GRASS);
+                    if y < height.saturating_sub(3) {
+                        self.set_block(x, y, z, BlockId::STONE); // الحجر في الأسفل
+                    } else if y < height {
+                        self.set_block(x, y, z, BlockId::DIRT);  // التراب في المنتصف
+                    } else if y == height {
+                        self.set_block(x, y, z, BlockId::GRASS); // العشب على السطح
                     }
                 }
             }
         }
     }
-          }
+}
