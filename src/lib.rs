@@ -105,7 +105,8 @@ impl OmnaraChunkNode {
         let mut arrays = ArrayMesh::new_gd();
         if vertices.len() > 0 {
             let mut surface_arrays = VarArray::new();
-            surface_arrays.resize(ArrayType::MAX.ord() as usize);
+            // تم تمرير &Variant::nil() لحل الخطأ
+            surface_arrays.resize(ArrayType::MAX.ord() as usize, &Variant::nil());
             
             surface_arrays.set(ArrayType::VERTEX.ord() as usize, &vertices.to_variant());
             surface_arrays.set(ArrayType::INDEX.ord() as usize, &indices.to_variant());
