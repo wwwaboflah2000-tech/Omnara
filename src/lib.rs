@@ -100,11 +100,14 @@ impl OmnaraChunkNode {
         }
     }
 
-    fn build_mesh(&self, chunk: &SubChunk) -> Gd<ArrayMesh> {
-        let mut vertices = PackedVector3Array::new();
-        let mut normals = PackedVector3Array::new();
-        let mut colors = PackedColorArray::new();
-        let mut indices = PackedInt32Array::new();
+fn build_mesh(&self, chunk: &SubChunk) -> Gd<ArrayMesh> {
+        // ⚡ استخدام مصفوفات Rust الأصلية (Native Vec) لسرعة خارقة قبل إرسالها لـ Godot ⚡
+        // حجزنا مساحة تقريبية (Capacity) لمنع المعالج من تضييع الوقت في إعادة حجز الذاكرة
+        let mut rust_vertices = Vec::with_capacity(2000);
+        let mut rust_normals = Vec::with_capacity(2000);
+        let mut rust_colors = Vec::with_capacity(2000);
+        let mut rust_indices = Vec::with_capacity(3000);
+        
         let mut vertex_count: i32 = 0;
 
         for y in 0..CHUNK_SIZE as i32 {
@@ -112,37 +115,36 @@ impl OmnaraChunkNode {
                 for x in 0..CHUNK_SIZE as i32 {
                     let block = chunk.get_block(x, y, z);
                     if !block.is_opaque() {
-                        continue;
+                        continue; // تجاوز الهواء فورا
                     }
 
                     for face_idx in 0..6 {
                         let dir = DIRECTIONS[face_idx];
                         let neighbor = chunk.get_block(x + dir[0], y + dir[1], z + dir[2]);
 
-                        // ارسم الوجه فقط إذا كان الجار هواء
                         if !neighbor.is_opaque() {
                             let face = FACE_VERTICES[face_idx];
                             let normal = FACE_NORMALS[face_idx];
                             let color = Self::get_block_color(block, face_idx);
 
+                            // دفع البيانات داخل مصفوفات Rust السريعة جداً
                             for v in face {
-                                vertices.push(Vector3::new(
+                                rust_vertices.push(Vector3::new(
                                     x as f32 + v[0],
                                     y as f32 + v[1],
                                     z as f32 + v[2],
                                 ));
-                                normals.push(Vector3::new(normal[0], normal[1], normal[2]));
-                                colors.push(color);
+                                rust_normals.push(Vector3::new(normal[0], normal[1], normal[2]));
+                                rust_colors.push(color);
                             }
 
-                            // بناء المثلثين لكل وجه
-                            indices.push(vertex_count);
-                            indices.push(vertex_count + 1);
-                            indices.push(vertex_count + 2);
+                            rust_indices.push(vertex_count);
+                            rust_indices.push(vertex_count + 1);
+                            rust_indices.push(vertex_count + 2);
 
-                            indices.push(vertex_count);
-                            indices.push(vertex_count + 2);
-                            indices.push(vertex_count + 3);
+                            rust_indices.push(vertex_count);
+                            rust_indices.push(vertex_count + 2);
+                            rust_indices.push(vertex_count + 3);
 
                             vertex_count += 4;
                         }
@@ -152,18 +154,24 @@ impl OmnaraChunkNode {
         }
 
         let mut arrays = ArrayMesh::new_gd();
-        if vertices.len() > 0 {
+        
+        if !rust_vertices.is_empty() {
+            // ⚡ تحويل مصفوفات Rust إلى مصفوفات Godot (دفعة واحدة فقط = FFI Call واحد) ⚡
+            let vertices_packed = PackedVector3Array::from_iter(rust_vertices);
+            let normals_packed = PackedVector3Array::from_iter(rust_normals);
+            let colors_packed = PackedColorArray::from_iter(rust_colors);
+            let indices_packed = PackedInt32Array::from_iter(rust_indices);
+
             let mut surface_arrays = VarArray::new();
             surface_arrays.resize(ArrayType::MAX.ord() as usize, &Variant::nil());
             
-            surface_arrays.set(ArrayType::VERTEX.ord() as usize, &vertices.to_variant());
-            surface_arrays.set(ArrayType::NORMAL.ord() as usize, &normals.to_variant());
-            surface_arrays.set(ArrayType::COLOR.ord() as usize, &colors.to_variant());
-            surface_arrays.set(ArrayType::INDEX.ord() as usize, &indices.to_variant());
+            surface_arrays.set(ArrayType::VERTEX.ord() as usize, &vertices_packed.to_variant());
+            surface_arrays.set(ArrayType::NORMAL.ord() as usize, &normals_packed.to_variant());
+            surface_arrays.set(ArrayType::COLOR.ord() as usize, &colors_packed.to_variant());
+            surface_arrays.set(ArrayType::INDEX.ord() as usize, &indices_packed.to_variant());
 
             arrays.add_surface_from_arrays(PrimitiveType::TRIANGLES, &surface_arrays);
         }
 
         arrays
-    }
 }
