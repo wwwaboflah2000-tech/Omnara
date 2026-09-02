@@ -1,0 +1,12 @@
+[package]
+name = "omnara_voxel"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+# إلزامي لإنتاج ملف .so يفهمه Godot
+crate-type = ["cdylib"]
+
+[dependencies]
+# مكتبة الربط الرسمية لـ Godot 4 مع Rust
+godot = { git = "https://github.com/godot-rust/gdext", branch = "master" }
