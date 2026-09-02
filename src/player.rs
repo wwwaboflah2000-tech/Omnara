@@ -13,12 +13,9 @@ const ACCELERATION: f32 = 12.0;
 const FRICTION: f32 = 14.0;
 const MOUSE_SENSITIVITY: f32 = 0.003;
 const TOUCH_SENSITIVITY: f32 = 0.005;
-
-// معايير تمايل الرأس (Head Bobbing)
 const BOB_FREQUENCY: f32 = 2.4;
 const BOB_AMPLITUDE: f32 = 0.06;
 
-// دالة رياضية سريعة لحساب التحرك الناعم نحو الهدف
 #[inline(always)]
 fn move_toward(from: f32, to: f32, delta: f32) -> f32 {
     if (to - from).abs() <= delta {
@@ -51,9 +48,6 @@ impl ICharacterBody3D for OmnaraPlayer {
     }
 
     fn ready(&mut self) {
-        godot_print!("🎮 [OMNARA]: Initializing AAA Player Controller...");
-
-        // 1. إنشاء مجسم الاصطدام الكبسولي
         let mut shape = CapsuleShape3D::new_gd();
         shape.set_radius(0.35);
         shape.set_height(1.8);
@@ -63,33 +57,29 @@ impl ICharacterBody3D for OmnaraPlayer {
         col_shape_node.set_position(Vector3::new(0.0, 0.9, 0.0));
         self.base_mut().add_child(&col_shape_node);
 
-        // 2. إنشاء نقطة الرأس (Head Node)
         let mut head_node = Node3D::new_alloc();
         head_node.set_position(Vector3::new(0.0, 1.6, 0.0));
 
-        // 3. إنشاء الكاميرا (Camera3D) داخل الرأس
-        let cam_node = Camera3D::new_alloc();
+        let mut cam_node = Camera3D::new_alloc();
+        // ⚡ أمر ضروري جداً لمنع الشاشة السوداء: تفعيل الكاميرا فوراً ⚡
+        cam_node.make_current(); 
         head_node.add_child(&cam_node);
 
         self.head = Some(head_node.clone());
         self.camera = Some(cam_node);
 
         self.base_mut().add_child(&head_node);
-
-        // وضع اللاعب فوق التضاريس عند البداية
-        self.base_mut().set_position(Vector3::new(8.0, 78.0, 8.0));
-
-        godot_print!("✅ [OMNARA]: AAA Player Spawned above the Terrain!");
+        
+        // تعديل مكان النزول ليكون فوق أعلى قمة في التضاريس لتجنب السقوط في الفراغ
+        self.base_mut().set_position(Vector3::new(8.0, 90.0, 8.0));
     }
 
     fn unhandled_input(&mut self, event: Gd<InputEvent>) {
-        // تحريك الرأس بالماوس
         if let Ok(mouse_motion) = event.clone().try_cast::<InputEventMouseMotion>() {
             let rel = mouse_motion.get_relative();
             self.rotate_camera(rel.x, rel.y, MOUSE_SENSITIVITY);
         }
 
-        // تحريك الرأس بالسحب باللمس للأندرويد
         if let Ok(touch_drag) = event.try_cast::<InputEventScreenDrag>() {
             let rel = touch_drag.get_relative();
             self.rotate_camera(rel.x, rel.y, TOUCH_SENSITIVITY);
@@ -101,40 +91,36 @@ impl ICharacterBody3D for OmnaraPlayer {
         let mut velocity = self.base().get_velocity();
         let is_on_floor = self.base().is_on_floor();
 
-        // 1. الجاذبية
         if !is_on_floor {
             velocity.y -= GRAVITY * delta_f;
         }
 
-        // 2. القفز (تم تمرير النص مباشرة بدون into)
         let input = Input::singleton();
-        if input.is_action_just_pressed("ui_accept") && is_on_floor {
+        
+        // ⚡ التغليف الآمن الصارم للنصوص لمنع انهيار المترجم واللعبة ⚡
+        let action_jump = StringName::from("ui_accept");
+        if input.is_action_just_pressed(&action_jump) && is_on_floor {
             velocity.y = JUMP_VELOCITY;
         }
 
-        // 3. استقبال الحركة الموحدة (تم تمرير النصوص مباشرة بدون into)
         let input_vec = input.get_vector(
-            "ui_left",
-            "ui_right",
-            "ui_up",
-            "ui_down",
+            &StringName::from("ui_left"),
+            &StringName::from("ui_right"),
+            &StringName::from("ui_up"),
+            &StringName::from("ui_down"),
         );
 
         let speed = WALK_SPEED;
-
         let global_transform = self.base().get_global_transform();
         let forward = -global_transform.basis.col_c().normalized();
         let right = global_transform.basis.col_a().normalized();
 
-        // تحويل متجه الإدخال إلى اتجاه حركة اللاعب
         let move_dir = (forward * -input_vec.y + right * input_vec.x).normalized();
 
-        // 4. تسارع واحتكاك ناعم
         if move_dir.length_squared() > 0.001 {
             velocity.x = move_toward(velocity.x, move_dir.x * speed, ACCELERATION * speed * delta_f);
             velocity.z = move_toward(velocity.z, move_dir.z * speed, ACCELERATION * speed * delta_f);
 
-            // تمايل الرأس أثناء المشي
             if is_on_floor {
                 self.bob_timer += delta_f * (speed * BOB_FREQUENCY);
                 let bob_y = 1.6 + (self.bob_timer.sin() * BOB_AMPLITUDE);
@@ -143,7 +129,6 @@ impl ICharacterBody3D for OmnaraPlayer {
                 }
             }
         } else {
-            // التوقف الناعم
             velocity.x = move_toward(velocity.x, 0.0, FRICTION * delta_f * 10.0);
             velocity.z = move_toward(velocity.z, 0.0, FRICTION * delta_f * 10.0);
 
