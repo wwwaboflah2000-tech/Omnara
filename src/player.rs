@@ -48,6 +48,9 @@ impl ICharacterBody3D for OmnaraPlayer {
     }
 
     fn ready(&mut self) {
+        godot_print!("🕹️ [PLAYER STEP 1]: Initializing Player Components...");
+
+        // 1. إنشاء كبسولة الاصطدام
         let mut shape = CapsuleShape3D::new_gd();
         shape.set_radius(0.35);
         shape.set_height(1.8);
@@ -57,21 +60,23 @@ impl ICharacterBody3D for OmnaraPlayer {
         col_shape_node.set_position(Vector3::new(0.0, 0.9, 0.0));
         self.base_mut().add_child(&col_shape_node);
 
+        // 2. إنشاء نقطة الرأس وإضافتها للشجرة أولاً
         let mut head_node = Node3D::new_alloc();
         head_node.set_position(Vector3::new(0.0, 1.6, 0.0));
+        self.base_mut().add_child(&head_node);
 
+        // 3. إنشاء الكاميرا وتفعيلها بأمان تام
         let mut cam_node = Camera3D::new_alloc();
-        // ⚡ أمر ضروري جداً لمنع الشاشة السوداء: تفعيل الكاميرا فوراً ⚡
-        cam_node.make_current(); 
         head_node.add_child(&cam_node);
+        cam_node.set_current(true); // استخدام set_current الآمنة بدلاً من make_current
 
-        self.head = Some(head_node.clone());
+        self.head = Some(head_node);
         self.camera = Some(cam_node);
 
-        self.base_mut().add_child(&head_node);
-        
-        // تعديل مكان النزول ليكون فوق أعلى قمة في التضاريس لتجنب السقوط في الفراغ
-        self.base_mut().set_position(Vector3::new(8.0, 90.0, 8.0));
+        // وضع اللاعب فوق السطح عند البداية
+        self.base_mut().set_position(Vector3::new(0.0, 75.0, 0.0));
+
+        godot_print!("🕹️ [PLAYER STEP 2]: Player Ready and In Position!");
     }
 
     fn unhandled_input(&mut self, event: Gd<InputEvent>) {
@@ -97,7 +102,6 @@ impl ICharacterBody3D for OmnaraPlayer {
 
         let input = Input::singleton();
         
-        // ⚡ التغليف الآمن الصارم للنصوص لمنع انهيار المترجم واللعبة ⚡
         let action_jump = StringName::from("ui_accept");
         if input.is_action_just_pressed(&action_jump) && is_on_floor {
             velocity.y = JUMP_VELOCITY;
@@ -154,4 +158,4 @@ impl OmnaraPlayer {
             head.set_rotation(Vector3::new(self.head_rotation_x, 0.0, 0.0));
         }
     }
-}
+        }
