@@ -1,11 +1,12 @@
 mod voxel;
 mod world;
+mod player;
 
 use godot::prelude::*;
 use godot::classes::{
     MeshInstance3D, IMeshInstance3D, ArrayMesh, StandardMaterial3D,
     base_material_3d::Flags, base_material_3d::CullMode,
-    mesh::ArrayType, mesh::PrimitiveType
+    mesh::ArrayType, mesh::PrimitiveType, StaticBody3D, CollisionShape3D
 };
 use godot::builtin::VarArray;
 use voxel::{BlockId, CHUNK_SIZE, MIN_WORLD_Y, MAX_WORLD_Y};
@@ -62,13 +63,11 @@ impl IMeshInstance3D for OmnaraChunkNode {
     }
 
     fn ready(&mut self) {
-        godot_print!("🔨 [OMNARA]: Generating 3x3 Full Landscape (Sea Level Y=63)...");
+        godot_print!("🔨 [OMNARA]: Generating Solid 3x3 World with Physics Collision...");
 
         let mut world = VoxelWorld::new();
-        // توليد عالم متصل بمحيط 1 (أي 9 Chunks = 48x48 بلوكة)
         world.generate_test_world(1);
 
-        // بناء مجسم العالم المتصل بالكامل
         let mesh = self.build_full_world_mesh(&world, 1);
 
         let mut mat = StandardMaterial3D::new_gd();
@@ -78,17 +77,28 @@ impl IMeshInstance3D for OmnaraChunkNode {
         self.base_mut().set_mesh(&mesh);
         self.base_mut().set_material_override(&mat);
 
-        godot_print!("✅ [OMNARA]: 3x3 Landscape with Water & Bedrock Rendered Successfully!");
+        // ⚡ توليد مجسم الاصطدام الفيزيائي الصلب تلقائياً ليقف اللاعب فوق التضاريس ⚡
+        let mut static_body = StaticBody3D::new_gd();
+        let mut col_shape = CollisionShape3D::new_gd();
+        
+        if let Some(shape) = mesh.create_trimesh_shape() {
+            col_shape.set_shape(&shape);
+            static_body.add_child(&col_shape);
+            self.base_mut().add_child(&static_body);
+            godot_print!("🛡️ [OMNARA]: World Physics Collision Shape Generated!");
+        }
+
+        godot_print!("✅ [OMNARA]: 3x3 World with Physics & Collision Ready!");
     }
 }
 
 impl OmnaraChunkNode {
     fn get_block_color(block: BlockId, face_idx: usize) -> Color {
         match block {
-            BlockId::BEDROCK => Color::from_rgb(0.12, 0.12, 0.12), // بيدروك أسود
+            BlockId::BEDROCK => Color::from_rgb(0.12, 0.12, 0.12),
             BlockId::GRASS => {
                 if face_idx == 0 {
-                    Color::from_rgb(0.2, 0.8, 0.2) // عشب أخضر في القمة
+                    Color::from_rgb(0.2, 0.8, 0.2)
                 } else if face_idx == 1 {
                     Color::from_rgb(0.45, 0.3, 0.15)
                 } else {
@@ -97,13 +107,12 @@ impl OmnaraChunkNode {
             }
             BlockId::DIRT => Color::from_rgb(0.5, 0.32, 0.15),
             BlockId::STONE => Color::from_rgb(0.55, 0.55, 0.55),
-            BlockId::SAND => Color::from_rgb(0.85, 0.82, 0.55),     // شاطئ رملي
-            BlockId::WATER => Color::from_rgba(0.15, 0.45, 0.9, 0.8), // مياه البحر 63
+            BlockId::SAND => Color::from_rgb(0.85, 0.82, 0.55),
+            BlockId::WATER => Color::from_rgba(0.15, 0.45, 0.9, 0.8),
             _ => Color::from_rgb(1.0, 1.0, 1.0),
         }
     }
 
-    // بناء مجسم العالم لجميع الـ 9 Chunks المتصلة
     fn build_full_world_mesh(&self, world: &VoxelWorld, radius: i32) -> Gd<ArrayMesh> {
         let mut rust_vertices = Vec::with_capacity(30000);
         let mut rust_normals = Vec::with_capacity(30000);
@@ -117,7 +126,6 @@ impl OmnaraChunkNode {
 
         for gx in min_coord..max_coord {
             for gz in min_coord..max_coord {
-                // مسح الارتفاع من قاع البيدروك (-64) إلى سقف العالم
                 for gy in MIN_WORLD_Y..MAX_WORLD_Y {
                     let block = world.get_block_global(gx, gy, gz);
                     if block == BlockId::AIR {
@@ -128,7 +136,6 @@ impl OmnaraChunkNode {
                         let dir = DIRECTIONS[face_idx];
                         let neighbor = world.get_block_global(gx + dir[0], gy + dir[1], gz + dir[2]);
 
-                        // رسم الوجه إذا كان الجار هواء أو ماء
                         let should_draw = if block == BlockId::WATER {
                             neighbor == BlockId::AIR
                         } else {
@@ -191,4 +198,4 @@ fn indices_builder(indices: &mut Vec<i32>, vertex_count: &mut i32) {
     indices.push(*vertex_count + 3);
 
     *vertex_count += 4;
-}
+    }
