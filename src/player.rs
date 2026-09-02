@@ -58,7 +58,6 @@ impl ICharacterBody3D for OmnaraPlayer {
         shape.set_radius(0.35);
         shape.set_height(1.8);
 
-        // ⚡ استخدام new_alloc للعقد بدلاً من new_gd ⚡
         let mut col_shape_node = CollisionShape3D::new_alloc();
         col_shape_node.set_shape(&shape);
         col_shape_node.set_position(Vector3::new(0.0, 0.9, 0.0));
@@ -113,29 +112,22 @@ impl ICharacterBody3D for OmnaraPlayer {
             velocity.y = JUMP_VELOCITY;
         }
 
-        // 3. اتجاه الحركة
-        let mut input_dir = Vector3::ZERO;
-        if input.is_action_pressed("ui_up".into()) || input.is_key_pressed(godot::global::Key::W) {
-            input_dir.z -= 1.0;
-        }
-        if input.is_action_pressed("ui_down".into()) || input.is_key_pressed(godot::global::Key::S) {
-            input_dir.z += 1.0;
-        }
-        if input.is_action_pressed("ui_left".into()) || input.is_key_pressed(godot::global::Key::A) {
-            input_dir.x -= 1.0;
-        }
-        if input.is_action_pressed("ui_right".into()) || input.is_key_pressed(godot::global::Key::D) {
-            input_dir.x += 1.0;
-        }
+        // 3. استقبال الحركة الموحدة (WASD / الأسهم / أزرار اللمس)
+        let input_vec = input.get_vector(
+            "ui_left".into(),
+            "ui_right".into(),
+            "ui_up".into(),
+            "ui_down".into(),
+        );
 
-        let is_sprinting = input.is_key_pressed(godot::global::Key::SHIFT);
-        let speed = if is_sprinting { SPRINT_SPEED } else { WALK_SPEED };
+        let speed = WALK_SPEED;
 
         let global_transform = self.base().get_global_transform();
         let forward = -global_transform.basis.col_c().normalized();
         let right = global_transform.basis.col_a().normalized();
 
-        let move_dir = (forward * -input_dir.z + right * input_dir.x).normalized();
+        // تحويل متجه الإدخال إلى اتجاه حركة اللاعب
+        let move_dir = (forward * -input_vec.y + right * input_vec.x).normalized();
 
         // 4. تسارع واحتكاك ناعم
         if move_dir.length_squared() > 0.001 {
