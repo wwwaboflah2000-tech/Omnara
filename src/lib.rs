@@ -13,6 +13,7 @@ struct OmnaraExtension;
 #[gdextension]
 unsafe impl ExtensionLibrary for OmnaraExtension {}
 
+// 1. الاتجاهات الستة لفحص الجيران
 const DIRECTIONS: [[i32; 3]; 6] = [
     [0, 1, 0],   // 0: Top (+Y)
     [0, -1, 0],  // 1: Bottom (-Y)
@@ -22,6 +23,7 @@ const DIRECTIONS: [[i32; 3]; 6] = [
     [-1, 0, 0],  // 5: West (-X)
 ];
 
+// 2. متجهات الإضاءة والظلال لكل وجه
 const FACE_NORMALS: [[f32; 3]; 6] = [
     [0.0, 1.0, 0.0],   // Top
     [0.0, -1.0, 0.0],  // Bottom
@@ -31,20 +33,20 @@ const FACE_NORMALS: [[f32; 3]; 6] = [
     [-1.0, 0.0, 0.0],  // West
 ];
 
-// ⚡ مصفوفة النقاط المصححة 100% (CCW) ⚡
+// 3. مصفوفة نقاط الأوجه المصححة رياضياً (Counter-Clockwise CCW 100%)
 const FACE_VERTICES: [[[f32; 3]; 4]; 6] = [
-    // Top (+Y)
+    // 0: Top (+Y)
     [[0.0, 1.0, 1.0], [1.0, 1.0, 1.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]],
-    // Bottom (-Y)
+    // 1: Bottom (-Y)
     [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 0.0, 1.0], [0.0, 0.0, 1.0]],
-    // South (+Z)
+    // 2: South (+Z)
     [[0.0, 0.0, 1.0], [1.0, 0.0, 1.0], [1.0, 1.0, 1.0], [0.0, 1.0, 1.0]],
-    // North (-Z)
+    // 3: North (-Z)
     [[1.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 1.0, 0.0], [1.0, 1.0, 0.0]],
-    // East (+X)
-    [[1.0, 0.0, 0.0], [1.0, 0.0, 1.0], [1.0, 1.0, 1.0], [1.0, 1.0, 0.0]],
-    // West (-X)
-    [[0.0, 0.0, 1.0], [0.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 1.0]],
+    // 4: East (+X)
+    [[1.0, 0.0, 1.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [1.0, 1.0, 1.0]],
+    // 5: West (-X)
+    [[0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, 1.0, 1.0], [0.0, 1.0, 0.0]],
 ];
 
 #[derive(GodotClass)]
@@ -60,21 +62,21 @@ impl IMeshInstance3D for OmnaraChunkNode {
     }
 
     fn ready(&mut self) {
-        godot_print!("🔨 [OMNARA]: Generating Solid SubChunk with CCW Face Culling...");
+        godot_print!("🔨 [OMNARA]: Generating Solid SubChunk with Fixed CCW Winding...");
 
         let mut sub_chunk = SubChunk::new();
         sub_chunk.generate_test_terrain();
 
         let mesh = self.build_mesh(&sub_chunk);
         
-        // ⚡ تم تصحيح تفعيل ألوان النقاط هنا ⚡
+        // خامة ألوان النقاط
         let mut mat = StandardMaterial3D::new_gd();
         mat.set_flag(Flags::ALBEDO_FROM_VERTEX_COLOR, true);
 
         self.base_mut().set_mesh(&mesh);
         self.base_mut().set_material_override(&mat);
         
-        godot_print!("✅ [OMNARA]: Solid SubChunk Rendered with Full Colors!");
+        godot_print!("✅ [OMNARA]: Solid SubChunk Rendered with Full Geometry & Colors!");
     }
 }
 
@@ -90,8 +92,8 @@ impl OmnaraChunkNode {
                     Color::from_rgb(0.35, 0.6, 0.2) // جانب العشب
                 }
             }
-            BlockId::DIRT => Color::from_rgb(0.5, 0.32, 0.15),
-            BlockId::STONE => Color::from_rgb(0.55, 0.55, 0.55),
+            BlockId::DIRT => Color::from_rgb(0.5, 0.32, 0.15), // تراب بني
+            BlockId::STONE => Color::from_rgb(0.55, 0.55, 0.55), // حجر رمادي
             _ => Color::from_rgb(1.0, 1.0, 1.0),
         }
     }
@@ -115,6 +117,7 @@ impl OmnaraChunkNode {
                         let dir = DIRECTIONS[face_idx];
                         let neighbor = chunk.get_block(x + dir[0], y + dir[1], z + dir[2]);
 
+                        // إخفاء الأوجه: ارسم الوجه فقط إذا كان الجار غير مصمت
                         if !neighbor.is_opaque() {
                             let face = FACE_VERTICES[face_idx];
                             let normal = FACE_NORMALS[face_idx];
@@ -130,6 +133,7 @@ impl OmnaraChunkNode {
                                 colors.push(color);
                             }
 
+                            // بناء مثلثين لكل وجه مربع (Indices)
                             indices.push(vertex_count);
                             indices.push(vertex_count + 1);
                             indices.push(vertex_count + 2);
