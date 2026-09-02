@@ -6,7 +6,7 @@ use godot::prelude::*;
 use godot::classes::{
     MeshInstance3D, IMeshInstance3D, ArrayMesh, StandardMaterial3D,
     base_material_3d::Flags, base_material_3d::CullMode,
-    mesh::ArrayType, mesh::PrimitiveType, StaticBody3D, CollisionShape3D
+    mesh::ArrayType, mesh::PrimitiveType
 };
 use godot::builtin::VarArray;
 use voxel::{BlockId, CHUNK_SIZE, MIN_WORLD_Y, MAX_WORLD_Y};
@@ -77,16 +77,9 @@ impl IMeshInstance3D for OmnaraChunkNode {
         self.base_mut().set_mesh(&mesh);
         self.base_mut().set_material_override(&mat);
 
-        // ⚡ استخدام new_alloc للعقد بدلاً من new_gd ⚡
-        let mut static_body = StaticBody3D::new_alloc();
-        let mut col_shape = CollisionShape3D::new_alloc();
-        
-        if let Some(shape) = mesh.create_trimesh_shape() {
-            col_shape.set_shape(&shape);
-            static_body.add_child(&col_shape);
-            self.base_mut().add_child(&static_body);
-            godot_print!("🛡️ [OMNARA]: World Physics Collision Shape Generated!");
-        }
+        // ⚡ توليد مجسم الاصطدام الفيزيائي للعالم بالكامل تلقائياً بدالة مدمجة ⚡
+        self.base_mut().create_trimesh_collision();
+        godot_print!("🛡️ [OMNARA]: World Physics Collision Shape Generated Successfully!");
 
         godot_print!("✅ [OMNARA]: 3x3 World with Physics & Collision Ready!");
     }
@@ -198,4 +191,4 @@ fn indices_builder(indices: &mut Vec<i32>, vertex_count: &mut i32) {
     indices.push(*vertex_count + 3);
 
     *vertex_count += 4;
-}
+                               }
