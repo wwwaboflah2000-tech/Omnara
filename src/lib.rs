@@ -63,11 +63,12 @@ impl IMeshInstance3D for OmnaraChunkNode {
     }
 
     fn ready(&mut self) {
-        godot_print!("🔨 [OMNARA]: Generating Solid 3x3 World with SAFE Mobile Collision...");
+        godot_print!("🌍 [WORLD STEP 1]: Generating Voxel Landscape Data...");
 
         let mut world = VoxelWorld::new();
         world.generate_test_world(1);
 
+        godot_print!("🌍 [WORLD STEP 2]: Building Visible Mesh...");
         let mesh = self.build_full_world_mesh(&world, 1);
 
         let mut mat = StandardMaterial3D::new_gd();
@@ -77,8 +78,11 @@ impl IMeshInstance3D for OmnaraChunkNode {
         self.base_mut().set_mesh(&mesh);
         self.base_mut().set_material_override(&mat);
 
-        // ⚡ الحل الجذري لمنع الانهيار (Crash): بناء الاصطدام يدوياً ليتوافق مع الموبايل ⚡
-        if let Some(shape) = mesh.create_trimesh_shape() {
+        // ⚡ بناء مجسم الاصطدام السطحي الخفيف فقط (خالٍ من الانهيار على الهواتف) ⚡
+        godot_print!("🌍 [WORLD STEP 3]: Building Lightweight Surface Collision...");
+        let collision_mesh = self.build_surface_collision_mesh(&world, 1);
+        
+        if let Some(shape) = collision_mesh.create_trimesh_shape() {
             let mut static_body = StaticBody3D::new_alloc();
             let mut col_shape = CollisionShape3D::new_alloc();
             
@@ -86,10 +90,10 @@ impl IMeshInstance3D for OmnaraChunkNode {
             static_body.add_child(&col_shape);
             self.base_mut().add_child(&static_body);
             
-            godot_print!("🛡️ [OMNARA]: Mobile-Safe Physics Collision Generated!");
+            godot_print!("🛡️ [WORLD STEP 4]: Optimized Mobile Collision Attached!");
         }
 
-        godot_print!("✅ [OMNARA]: World is Ready to Play!");
+        godot_print!("✅ [WORLD STEP 5]: Entire World & Physics Ready!");
     }
 }
 
@@ -112,6 +116,59 @@ impl OmnaraChunkNode {
             BlockId::WATER => Color::from_rgba(0.15, 0.45, 0.9, 0.8),
             _ => Color::from_rgb(1.0, 1.0, 1.0),
         }
+    }
+
+    // بناء مجسم الاصطدام السطحي فقط (فوق Y = 50) لحماية معالج الهاتف من الانهيار
+    fn build_surface_collision_mesh(&self, world: &VoxelWorld, radius: i32) -> Gd<ArrayMesh> {
+        let mut vertices = Vec::with_capacity(6000);
+        let mut indices = Vec::with_capacity(9000);
+        let mut vertex_count: i32 = 0;
+
+        let min_coord = -radius * CHUNK_SIZE as i32;
+        let max_coord = (radius + 1) * CHUNK_SIZE as i32;
+
+        for gx in min_coord..max_coord {
+            for gz in min_coord..max_coord {
+                // اصطدام السطح فقط (فوق Y = 50) لمنع استهلاك الرام
+                for gy in 50..MAX_WORLD_Y {
+                    let block = world.get_block_global(gx, gy, gz);
+                    if block == BlockId::AIR || block == BlockId::WATER {
+                        continue;
+                    }
+
+                    for face_idx in 0..6 {
+                        let dir = DIRECTIONS[face_idx];
+                        let neighbor = world.get_block_global(gx + dir[0], gy + dir[1], gz + dir[2]);
+
+                        if !neighbor.is_opaque() {
+                            let face = FACE_VERTICES[face_idx];
+                            for v in face {
+                                vertices.push(Vector3::new(
+                                    gx as f32 + v[0],
+                                    gy as f32 + v[1],
+                                    gz as f32 + v[2],
+                                ));
+                            }
+                            indices_builder(&mut indices, &mut vertex_count);
+                        }
+                    }
+                }
+            }
+        }
+
+        let mut arrays = ArrayMesh::new_gd();
+        if !vertices.is_empty() {
+            let vertices_packed: PackedVector3Array = vertices.into_iter().collect();
+            let indices_packed: PackedInt32Array = indices.into_iter().collect();
+
+            let mut surface_arrays = VarArray::new();
+            surface_arrays.resize(ArrayType::MAX.ord() as usize, &Variant::nil());
+            surface_arrays.set(ArrayType::VERTEX.ord() as usize, &vertices_packed.to_variant());
+            surface_arrays.set(ArrayType::INDEX.ord() as usize, &indices_packed.to_variant());
+
+            arrays.add_surface_from_arrays(PrimitiveType::TRIANGLES, &surface_arrays);
+        }
+        arrays
     }
 
     fn build_full_world_mesh(&self, world: &VoxelWorld, radius: i32) -> Gd<ArrayMesh> {
