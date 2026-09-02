@@ -1,25 +1,28 @@
 pub const CHUNK_SIZE: usize = 16;
 pub const CHUNK_VOLUME: usize = CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE; // 4096
 
-// معايير الارتفاع: من -64 إلى 320 (إجمالي 384 بلوكة = 24 قسم فرعي)
+// معايير الارتفاع: من -64 إلى 320 (384 بلوكة = 24 SubChunk)
 pub const MIN_WORLD_Y: i32 = -64;
 pub const MAX_WORLD_Y: i32 = 320;
 pub const WORLD_HEIGHT: usize = (MAX_WORLD_Y - MIN_WORLD_Y) as usize; // 384
 pub const SUBCHUNKS_PER_COLUMN: usize = WORLD_HEIGHT / CHUNK_SIZE; // 24
+pub const SEA_LEVEL: i32 = 63; // مستوى سطح البحر الدقيق
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct BlockId(pub u8);
 
 impl BlockId {
     pub const AIR: BlockId = BlockId(0);
-    pub const STONE: BlockId = BlockId(1);
-    pub const DIRT: BlockId = BlockId(2);
-    pub const GRASS: BlockId = BlockId(3);
-    pub const WATER: BlockId = BlockId(4);
+    pub const BEDROCK: BlockId = BlockId(1);
+    pub const STONE: BlockId = BlockId(2);
+    pub const DIRT: BlockId = BlockId(3);
+    pub const GRASS: BlockId = BlockId(4);
+    pub const WATER: BlockId = BlockId(5);
+    pub const SAND: BlockId = BlockId(6);
 
     #[inline(always)]
     pub fn is_opaque(&self) -> bool {
-        self.0 != 0 && self.0 != BlockId::WATER.0
+        self.0 != BlockId::AIR.0 && self.0 != BlockId::WATER.0
     }
 }
 
