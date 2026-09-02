@@ -1,7 +1,13 @@
 pub const CHUNK_SIZE: usize = 16;
-pub const CHUNK_VOLUME: usize = CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE;
+pub const CHUNK_VOLUME: usize = CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE; // 4096
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+// معايير الارتفاع: من -64 إلى 320 (إجمالي 384 بلوكة = 24 قسم فرعي)
+pub const MIN_WORLD_Y: i32 = -64;
+pub const MAX_WORLD_Y: i32 = 320;
+pub const WORLD_HEIGHT: usize = (MAX_WORLD_Y - MIN_WORLD_Y) as usize; // 384
+pub const SUBCHUNKS_PER_COLUMN: usize = WORLD_HEIGHT / CHUNK_SIZE; // 24
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct BlockId(pub u8);
 
 impl BlockId {
@@ -9,10 +15,11 @@ impl BlockId {
     pub const STONE: BlockId = BlockId(1);
     pub const DIRT: BlockId = BlockId(2);
     pub const GRASS: BlockId = BlockId(3);
+    pub const WATER: BlockId = BlockId(4);
 
     #[inline(always)]
     pub fn is_opaque(&self) -> bool {
-        self.0 != 0
+        self.0 != 0 && self.0 != BlockId::WATER.0
     }
 }
 
@@ -28,18 +35,16 @@ impl SubChunk {
     }
 
     #[inline(always)]
-    fn get_index(x: usize, y: usize, z: usize) -> usize {
+    pub fn get_index(x: usize, y: usize, z: usize) -> usize {
         x + (z << 4) + (y << 8)
     }
 
     #[inline(always)]
-    pub fn get_block(&self, x: i32, y: i32, z: i32) -> BlockId {
-        if x < 0 || x >= CHUNK_SIZE as i32 ||
-           y < 0 || y >= CHUNK_SIZE as i32 ||
-           z < 0 || z >= CHUNK_SIZE as i32 {
+    pub fn get_block(&self, x: usize, y: usize, z: usize) -> BlockId {
+        if x >= CHUNK_SIZE || y >= CHUNK_SIZE || z >= CHUNK_SIZE {
             return BlockId::AIR;
         }
-        let index = Self::get_index(x as usize, y as usize, z as usize);
+        let index = Self::get_index(x, y, z);
         BlockId(self.blocks[index])
     }
 
@@ -48,25 +53,6 @@ impl SubChunk {
         if x < CHUNK_SIZE && y < CHUNK_SIZE && z < CHUNK_SIZE {
             let index = Self::get_index(x, y, z);
             self.blocks[index] = block.0;
-        }
-    }
-
-    pub fn generate_test_terrain(&mut self) {
-        for x in 0..CHUNK_SIZE {
-            for z in 0..CHUNK_SIZE {
-                let wave = ((x as f32 * 0.4).sin() * 2.5 + (z as f32 * 0.4).cos() * 2.5) as i32;
-                let height = (7 + wave).clamp(2, (CHUNK_SIZE - 2) as i32) as usize;
-
-                for y in 0..CHUNK_SIZE {
-                    if y < height.saturating_sub(3) {
-                        self.set_block(x, y, z, BlockId::STONE);
-                    } else if y < height {
-                        self.set_block(x, y, z, BlockId::DIRT);
-                    } else if y == height {
-                        self.set_block(x, y, z, BlockId::GRASS);
-                    }
-                }
-            }
         }
     }
 }
